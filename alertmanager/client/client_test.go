@@ -240,7 +240,7 @@ func newTestClient() (AlertmanagerClient, *mocks.FSClient, *[]byte) {
 	tenancy := &alert.TenancyConfig{
 		RestrictorLabel: "tenantID",
 	}
-	return NewClient("test/alertmanager.yml", "alertmanager-host:9093", tenancy, fsClient), fsClient, &outputFile
+	return NewClient("test/alertmanager.yml", "alertmanager-host:9093", tenancy, fsClient, false), fsClient, &outputFile
 }
 
 func byteToConfig(in []byte) (config.Config, error) {

@@ -60,15 +60,17 @@ type client struct {
 	alertmanagerURL string
 	fsClient        fsclient.FSClient
 	tenancy         *alert.TenancyConfig
+	deleteRoutes    bool
 	sync.RWMutex
 }
 
-func NewClient(configPath, alertmanagerURL string, tenancy *alert.TenancyConfig, fsClient fsclient.FSClient) AlertmanagerClient {
+func NewClient(configPath, alertmanagerURL string, tenancy *alert.TenancyConfig, fsClient fsclient.FSClient, deleteRoutes bool) AlertmanagerClient {
 	return &client{
 		configPath:      configPath,
 		alertmanagerURL: alertmanagerURL,
 		fsClient:        fsClient,
 		tenancy:         tenancy,
+		deleteRoutes:    deleteRoutes,
 	}
 }
 
@@ -156,14 +158,27 @@ func (c *client) DeleteReceiver(tenantID, receiverName string) error {
 
 	receiverToDelete := config.SecureReceiverName(receiverName, tenantID)
 
+	foundReceiver := false
 	for idx, rec := range conf.Receivers {
 		if rec.Name == receiverToDelete {
 			conf.Receivers = append(conf.Receivers[:idx], conf.Receivers[idx+1:]...)
-			return c.writeConfigFile(conf)
+			foundReceiver = true
+			break
+		}
+	}
+	if !foundReceiver {
+		return fmt.Errorf("receiver '%s' does not exist", receiverName)
+	}
+
+	if c.deleteRoutes {
+		conf.RemoveReceiverFromRoute(receiverToDelete)
+	} else {
+		if conf.SearchRoutesForReceiver(receiverToDelete) {
+			return fmt.Errorf("reciever '%s' referenced in route. Update routing tree and remove references before deleting this receiver", receiverName)
 		}
 	}
 
-	return fmt.Errorf("Receiver '%s' does not exist", receiverName)
+	return c.writeConfigFile(conf)
 }
 
 // ModifyTenantRoute takes a new route for a tenant and replaces the old one,
